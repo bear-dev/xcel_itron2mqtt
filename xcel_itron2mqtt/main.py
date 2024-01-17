@@ -1,3 +1,4 @@
+import logging
 import os
 from time import sleep
 from pathlib import Path
@@ -5,6 +6,9 @@ from xcelMeter import xcelMeter
 from zeroconf import ServiceBrowser, ServiceListener, Zeroconf
 
 INTEGRATION_NAME = "Xcel Itron 5"
+
+# Set default logger
+logger = logging.getLogger("xcel_itron2mqtt")
 
 # mDNS listener to find the IP Address of the meter on the network
 class XcelListener(ServiceListener):
@@ -19,7 +23,22 @@ class XcelListener(ServiceListener):
 
     def add_service(self, zc: Zeroconf, type_: str, name: str) -> None:
         self.info = zc.get_service_info(type_, name)
-        print(f"Service {name} added, service info: {self.info}")
+        logger.info(f"Service {name} added, service info: {self.info}")
+
+
+# Configure logger
+def set_logger():
+    handler = logging.StreamHandler()
+    formatter = logging.Formatter(
+        "%(asctime)s.%(msecs)03d [%(levelname)s] %(name)s: %(message)s",
+        "%Y-%m-%dT%H:%M:%S",
+    )
+    handler.setFormatter(formatter)
+    # Set Handler for root logger
+    logging.getLogger().addHandler(handler)
+    logging.getLogger().setLevel("INFO")
+    return None
+
 
 def look_for_creds() -> tuple:
     """
@@ -59,7 +78,7 @@ def mDNS_search_for_meter() -> str | int:
         addresses = listener.info.addresses
     except:
         raise TimeoutError('Waiting too long to get response from meter')
-    print(listener.info)
+    logger.info(listener.info)
     # Auto parses the network byte format into a legible address
     ip_address = listener.info.parsed_addresses()[0]
     port = listener.info.port
@@ -70,6 +89,7 @@ def mDNS_search_for_meter() -> str | int:
 
 
 if __name__ == '__main__':
+    set_logger()
     if os.getenv('METER_IP') and os.getenv('METER_PORT'):
         ip_address = os.getenv('METER_IP')
         port_num = os.getenv('METER_PORT')

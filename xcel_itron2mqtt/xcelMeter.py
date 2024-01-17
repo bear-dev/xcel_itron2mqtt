@@ -3,6 +3,7 @@ import ssl
 import yaml
 import json
 import requests
+import logging
 import paho.mqtt.client as mqtt
 import xml.etree.ElementTree as ET
 from time import sleep
@@ -17,6 +18,9 @@ from xcelEndpoint import xcelEndpoint
 IEEE_PREFIX = '{urn:ieee:std:2030.5:ns}'
 # Our target cipher is: ECDHE-ECDSA-AES128-CCM8
 CIPHERS = ('ECDHE')
+
+# Set default logger
+logger = logging.getLogger(__name__)
 
 # Create an adapter for our request to enable the non-standard cipher
 # From https://lukasa.co.uk/2017/02/Configuring_TLS_With_Requests/
@@ -94,14 +98,25 @@ class xcelMeter():
         """
         query_url = f'{self.url}{hw_info_url}'
         # query the hw specs endpoint
-        x = self.requests_session.get(query_url, verify=False, timeout=4.0)
-        # Parse the response xml looking for the passed in element names
-        root = ET.fromstring(x.text)
-        hw_info_dict = {}
-        for name in hw_names:
-            hw_info_dict[name] = root.find(f'.//{IEEE_PREFIX}{name}').text
-        
-        return hw_info_dict
+        attempt = 1
+        while True:
+            logger.info(f"Query the HW specs endpoint. Attempt {attempt}")
+            try:
+                x = self.requests_session.get(query_url, verify=False, timeout=4.0)
+                # Parse the response xml looking for the passed in element names
+                root = ET.fromstring(x.text)
+                hw_info_dict = {}
+                for name in hw_names:
+                    hw_info_dict[name] = root.find(f'.//{IEEE_PREFIX}{name}').text
+                return hw_info_dict
+            except requests.ConnectionError as e:
+                logger.error(f"Connection Error: {e}")
+            except requests.Timeout as e:
+                logger.error(f"Timeout Error: {e}")
+            except requests.RequestException as e:
+                logger.error(f"Request Error: {e}")
+            attempt += 1
+            sleep(60)
 
     @staticmethod
     def setup_session(creds: tuple, ip_address: str) -> requests.session:
@@ -166,9 +181,9 @@ class xcelMeter():
         """
         def on_connect(client, userdata, flags, rc):
             if rc == 0:
-                print("Connected to MQTT Broker!")
+                logger.info("Connected to MQTT Broker!")
             else:
-                print("Failed to connect, return code %d\n", rc)
+                logger.info(f"Failed to connect, return code {rc}")
 
         # Check if a username/PW is setup for the MQTT connection
         mqtt_username = os.getenv('MQTT_USER')
@@ -210,9 +225,9 @@ class xcelMeter():
             }
         config_dict.update(self.device_info)
         config_json = json.dumps(config_dict)
-        #print(f"Sending MQTT Discovery Payload")
-        #print(f"TOPIC: {state_topic}")
-        #print(f"Config: {config_json}")
+        logger.debug(f"Sending MQTT Discovery Payload")
+        logger.debug(f"TOPIC: {state_topic}")
+        logger.debug(f"Config: {config_json}")
         self.mqtt_client.publish(state_topic, str(config_json))
 
     def run(self) -> None:
@@ -227,4 +242,3 @@ class xcelMeter():
             sleep(self.POLLING_RATE)
             for obj in self.endpoints:
                 obj.run()
-    

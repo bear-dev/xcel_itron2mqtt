@@ -1,3 +1,4 @@
+import logging
 import yaml
 import json
 import requests
@@ -7,6 +8,9 @@ from copy import deepcopy
 
 # Prefix that appears on all of the XML elements
 IEEE_PREFIX = '{urn:ieee:std:2030.5:ns}'
+
+# Set module logger
+logger = logging.getLogger(__name__)
 
 class xcelEndpoint():
     """
@@ -154,11 +158,11 @@ class xcelEndpoint():
         Returns: integer
         """
         result = [0]
-        #print(f"Sending to MQTT TOPIC:\t{topic}")
-        #print(f"Payload:\t\t{message}")
+        logger.debug(f"Sending to MQTT TOPIC:\t{topic}")
+        logger.debug(f"Payload:\t\t{message}")
         result = self.client.publish(topic, str(message), retain=retain)
-        #print('Error in sending MQTT payload')
-        #print(f"MQTT Send Result: \t\t{result}")
+        logger.debug('Error in sending MQTT payload')
+        logger.debug(f"MQTT Send Result: \t\t{result}")
         # Return status of the published message
         return result[0]
 
